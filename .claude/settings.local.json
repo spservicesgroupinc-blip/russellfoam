@@ -3,7 +3,25 @@
     "allow": [
       "Bash(find:*)",
       "Bash(ls:*)",
-      "mcp__Claude_Preview__preview_start"
+      "mcp__Claude_Preview__preview_start",
+      "Bash(python3:*)",
+      "Bash(npx supabase:*)",
+      "Bash(node --version:*)",
+      "Bash(npm --version:*)",
+      "Bash(curl:*)",
+      "mcp__mcp-registry__search_mcp_registry",
+      "Bash(claude mcp list:*)",
+      "mcp__supabase__get_project_url",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__deploy_edge_function",
+      "Bash(npm install:*)",
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__get_advisors",
+      "Bash(pkill:*)",
+      "Bash(taskkill:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

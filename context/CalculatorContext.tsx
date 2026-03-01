@@ -70,7 +70,16 @@ export const DEFAULT_STATE: CalculatorState = {
   materialLogs: [],
   scheduledDate: '',
   assignedCrewId: '',
-  jobNotes: ''
+  jobNotes: '',
+  pricingMode: 'level_pricing',
+  sqFtRates: {
+    wall: 0,
+    roof: 0,
+  },
+  expenses: {
+    manHours: 0,
+    tripCharge: 0,
+  },
 };
 
 // --- TYPES ---
@@ -165,7 +174,10 @@ const calculatorReducer = (state: ContextState, action: Action): ContextState =>
           customerProfile: { ...DEFAULT_STATE.customerProfile },
           length: 40, width: 30, wallHeight: 10,
           isMetalSurface: false,
-          inventory: [], jobNotes: '', scheduledDate: '', assignedCrewId: ''
+          inventory: [], jobNotes: '', scheduledDate: '', assignedCrewId: '',
+          pricingMode: 'level_pricing' as const,
+          sqFtRates: { wall: 0, roof: 0 },
+          expenses: { manHours: 0, tripCharge: 0 },
         }
       };
     case 'LOGOUT':
