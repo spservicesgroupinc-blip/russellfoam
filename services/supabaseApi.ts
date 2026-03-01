@@ -342,6 +342,7 @@ export const syncUp = async (state: CalculatorState): Promise<boolean> => {
       .from('company_settings')
       .update({
         profile: state.companyProfile,
+        costs: state.costs ?? null,
         yields: state.yields,
         foam_counts: {
           openCellSets: state.warehouse.openCellSets,

@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "node_modules/.bin/vite",
+      "runtimeArgs": ["--port", "3000"],
+      "port": 3000
+    },
+    {
+      "name": "preview",
+      "runtimeExecutable": "node_modules/.bin/vite",
+      "runtimeArgs": ["preview", "--port", "4173"],
+      "port": 4173
+    }
+  ]
+}

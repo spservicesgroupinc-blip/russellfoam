@@ -155,6 +155,12 @@ export interface MaterialUsageLogEntry {
   loggedBy: string;
 }
 
+export interface Costs {
+  openCell: number;
+  closedCell: number;
+  laborRate: number;
+}
+
 export interface CalculatorState {
   mode: CalculationMode;
   length: number;
@@ -165,6 +171,7 @@ export interface CalculatorState {
   isMetalSurface: boolean; // Added for Metal Surface Calculation
   wallSettings: FoamSettings;
   roofSettings: FoamSettings;
+  costs?: Costs;
   yields: {
     openCell: number;
     closedCell: number;
