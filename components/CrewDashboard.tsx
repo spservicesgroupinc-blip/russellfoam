@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
     LogOut, RefreshCw, MapPin, Calendar, HardHat, FileText, 
     ChevronLeft, CheckCircle2, Package, AlertTriangle, User, 
@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { CalculatorState, EstimateRecord } from '../types';
 import { logCrewTime, completeJob, syncDown, getCurrentSession, updateEstimateExecutionStatus } from '../services/supabaseApi';
+import { supabase } from '../lib/supabase';
 
 interface CrewDashboardProps {
   state: CalculatorState;
@@ -72,10 +73,20 @@ export const CrewDashboard: React.FC<CrewDashboardProps> = ({ state, onLogout, s
 
   // Get session from state props (passed via auth context)
   const [session, setSession] = useState<any>(null);
-  
+  const broadcastChannelRef = useRef<any>(null);
+
   useEffect(() => {
     getCurrentSession().then(s => setSession(s)).catch(() => {});
   }, []);
+
+  // Broadcast channel — subscribe once session (companyId) is known
+  useEffect(() => {
+    if (!session?.companyId) return;
+    const ch = supabase.channel(`company-${session.companyId}`);
+    ch.subscribe();
+    broadcastChannelRef.current = ch;
+    return () => { supabase.removeChannel(ch); broadcastChannelRef.current = null; };
+  }, [session?.companyId]);
 
   const workOrders = state.savedEstimates.filter(e => {
       if (e.status !== 'Work Order' || e.executionStatus === 'Completed') return false;
@@ -95,6 +106,11 @@ export const CrewDashboard: React.FC<CrewDashboardProps> = ({ state, onLogout, s
       if (selectedJobId) {
           localStorage.setItem('foamPro_crewActiveJob', selectedJobId);
           await updateEstimateExecutionStatus(selectedJobId, 'In Progress');
+          broadcastChannelRef.current?.send({
+              type: 'broadcast',
+              event: 'job_started',
+              payload: { jobId: selectedJobId, crewName: session?.crewName || session?.displayName || 'Crew' },
+          });
       }
   };
 
@@ -157,13 +173,20 @@ export const CrewDashboard: React.FC<CrewDashboardProps> = ({ state, onLogout, s
         const success = await completeJob(selectedJob.id, finalData);
         
         if (success) {
+            // Broadcast to admin in real-time
+            broadcastChannelRef.current?.send({
+                type: 'broadcast',
+                event: 'job_completed',
+                payload: { jobId: selectedJob.id, crewName: currentSession.crewName || currentSession.displayName || 'Crew' },
+            });
+
             setShowCompletionModal(false);
             setSelectedJobId(null);
-            
-            // Force Sync to update UI immediately
+
+            // Pull fresh state so completed job disappears from crew list
             setTimeout(async () => {
                 try {
-                    await onSync(); 
+                    await onSync();
                     alert("Job Completed Successfully!");
                 } catch(e) {
                     console.error("Sync failed after completion", e);
@@ -454,6 +477,36 @@ export const CrewDashboard: React.FC<CrewDashboardProps> = ({ state, onLogout, s
                                     </div>
                                 )}
                             </div>
+
+                            {/* Inventory Items — editable actual quantities */}
+                            {actuals.inventory && actuals.inventory.length > 0 && (
+                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
+                                    <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest border-b border-slate-200 pb-2">Other Materials Used</h4>
+                                    {actuals.inventory.map((item: any, idx: number) => (
+                                        <div key={item.id || idx} className="flex items-center gap-3">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-sm font-bold text-slate-700 truncate">{item.name}</div>
+                                                <div className="text-[10px] text-slate-400 font-medium">Est: {Number(item.quantity || 0).toFixed(2)} {item.unit}</div>
+                                            </div>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                <input
+                                                    type="number"
+                                                    step="0.5"
+                                                    min="0"
+                                                    value={item.quantity || ''}
+                                                    onChange={(e) => {
+                                                        const updated = [...actuals.inventory];
+                                                        updated[idx] = { ...updated[idx], quantity: parseFloat(e.target.value) || 0 };
+                                                        setActuals({ ...actuals, inventory: updated });
+                                                    }}
+                                                    className="w-24 p-2 bg-white border border-slate-200 rounded-xl font-bold text-lg text-slate-900 focus:ring-2 focus:ring-brand outline-none text-center"
+                                                />
+                                                <span className="text-xs text-slate-400 font-bold w-10">{item.unit}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
 
                             {/* CREW NOTES */}
                             <div>

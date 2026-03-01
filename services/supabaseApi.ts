@@ -593,29 +593,10 @@ export const completeJob = async (
       await supabase.from('material_logs').insert(logs);
     }
 
-    // 4. Update foam counts in settings
-    const { data: settings } = await supabase
-      .from('company_settings')
-      .select('foam_counts')
-      .eq('company_id', companyId)
-      .single();
-
-    if (settings) {
-      const counts = settings.foam_counts || { openCellSets: 0, closedCellSets: 0 };
-      const estMaterials = estimate?.materials || {};
-      const deltaOc = (Number(actuals.openCellSets) || 0) - (Number(estMaterials.openCellSets) || 0);
-      const deltaCc = (Number(actuals.closedCellSets) || 0) - (Number(estMaterials.closedCellSets) || 0);
-
-      await supabase
-        .from('company_settings')
-        .update({
-          foam_counts: {
-            openCellSets: (counts.openCellSets || 0) - deltaOc,
-            closedCellSets: (counts.closedCellSets || 0) - deltaCc,
-          },
-        })
-        .eq('company_id', companyId);
-    }
+    // Foam counts + warehouse inventory deduction is handled automatically by
+    // the DB trigger `trg_deduct_inventory_on_job_complete` (SECURITY DEFINER),
+    // which fires on the estimates UPDATE above. This works for both crew and
+    // admin users without needing elevated client-side permissions.
 
     return true;
   } catch (error) {

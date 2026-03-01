@@ -131,13 +131,89 @@ export const useSync = () => {
     return () => { if (syncTimerRef.current) clearTimeout(syncTimerRef.current); };
   }, [appData, ui.isLoading, ui.isInitialized, session, dispatch]);
 
-  // 4. MANUAL FORCE SYNC
+  // 4. REALTIME: Admin watches for crew job events (broadcast + postgres_changes)
+  useEffect(() => {
+    if (!session || session.role !== 'admin' || !session.companyId) return;
+
+    const channel = supabase
+      .channel(`company-${session.companyId}`)
+      // Broadcast: crew started a job (instant, no DB lag)
+      .on('broadcast', { event: 'job_started' }, (payload: any) => {
+        const data = payload.payload ?? payload;
+        if (data?.jobId) {
+          dispatch({
+            type: 'UPDATE_ESTIMATE',
+            payload: { id: data.jobId, executionStatus: 'In Progress' },
+          });
+        }
+      })
+      // Broadcast: crew completed a job (fast path)
+      .on('broadcast', { event: 'job_completed' }, (payload: any) => {
+        const data = payload.payload ?? payload;
+        if (data?.jobId) {
+          dispatch({
+            type: 'UPDATE_ESTIMATE',
+            payload: { id: data.jobId, executionStatus: 'Completed' },
+          });
+        }
+      })
+      // postgres_changes: DB-level fallback for completions
+      // (fires even if crew goes offline before broadcast sends)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'estimates' },
+        (payload: any) => {
+          if (payload.new?.execution_status === 'Completed') {
+            dispatch({
+              type: 'UPDATE_ESTIMATE',
+              payload: {
+                id: payload.new.id,
+                executionStatus: 'Completed',
+                actuals: payload.new.actuals,
+              },
+            });
+          }
+          if (payload.new?.execution_status === 'In Progress') {
+            dispatch({
+              type: 'UPDATE_ESTIMATE',
+              payload: { id: payload.new.id, executionStatus: 'In Progress' },
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [session, dispatch]);
+
+  // 5. MANUAL FORCE SYNC
   const handleManualSync = async () => {
     if (!session) return;
     dispatch({ type: 'SET_SYNC_STATUS', payload: 'syncing' });
-    
+
+    // Crew members never push state up — they only pull fresh data.
+    // (Pushing would overwrite execution_status changes written by completeJob.)
+    if (session.role === 'crew') {
+      const cloudData = await syncDown();
+      if (cloudData) {
+        const mergedState = {
+          ...DEFAULT_STATE,
+          ...cloudData,
+          companyProfile: { ...DEFAULT_STATE.companyProfile, ...(cloudData.companyProfile || {}) },
+          warehouse: { ...DEFAULT_STATE.warehouse, ...(cloudData.warehouse || {}) },
+          yields: { ...DEFAULT_STATE.yields, ...(cloudData.yields || {}) },
+        };
+        dispatch({ type: 'LOAD_DATA', payload: mergedState });
+        dispatch({ type: 'SET_SYNC_STATUS', payload: 'success' });
+        setTimeout(() => dispatch({ type: 'SET_SYNC_STATUS', payload: 'idle' }), 3000);
+      } else {
+        dispatch({ type: 'SET_SYNC_STATUS', payload: 'error' });
+      }
+      return;
+    }
+
     const success = await syncUp(appData);
-    
+
     if (success) {
       lastSyncedStateRef.current = JSON.stringify(appData);
       dispatch({ type: 'SET_SYNC_STATUS', payload: 'success' });

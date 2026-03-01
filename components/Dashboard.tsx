@@ -145,11 +145,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <p className={`text-xs mt-2 ${dashboardFilter === 'all' ? 'text-slate-500' : 'text-slate-400'}`}>{state.savedEstimates.filter(e => e.status !== 'Archived').length} Active Jobs</p>
             </button>
             
-            <button onClick={() => setDashboardFilter('review')} className={`text-left p-6 rounded-2xl relative overflow-hidden border transition-all transform hover:scale-[1.01] ring-2 ${dashboardFilter === 'review' ? 'ring-emerald-500 bg-emerald-50 border-emerald-200' : 'ring-transparent bg-white border-slate-200'}`}>
+            <button onClick={() => setDashboardFilter('review')} className={`text-left p-6 rounded-2xl relative overflow-hidden border transition-all transform hover:scale-[1.01] ring-2 ${dashboardFilter === 'review' ? 'ring-emerald-500 bg-emerald-50 border-emerald-200' : dashboardStats.reviewNeeded > 0 ? 'ring-emerald-300 bg-emerald-50/50 border-emerald-200' : 'ring-transparent bg-white border-slate-200'}`}>
                 <div className="absolute top-0 right-0 p-4 opacity-10 text-emerald-600"><CheckCircle2 className="w-24 h-24" /></div>
-                <p className="text-slate-500 font-medium text-xs uppercase tracking-wider mb-2">Review Needed</p>
+                <div className="flex items-center gap-2 mb-2">
+                    <p className="text-slate-500 font-medium text-xs uppercase tracking-wider">Ready for Review</p>
+                    {dashboardStats.reviewNeeded > 0 && (
+                        <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                    )}
+                </div>
                 <p className="text-3xl font-bold text-slate-800">{dashboardStats.reviewNeeded}</p>
-                <p className="text-xs text-emerald-600 font-bold mt-2">Jobs Completed</p>
+                <p className="text-xs text-emerald-600 font-bold mt-2">Jobs Completed by Crew</p>
             </button>
 
             <button onClick={() => setDashboardFilter('work_orders')} className={`text-left p-6 rounded-2xl relative overflow-hidden border transition-all transform hover:scale-[1.01] ring-2 ${dashboardFilter === 'work_orders' ? 'ring-brand bg-red-50 border-red-200' : 'ring-transparent bg-white border-slate-200'}`}>

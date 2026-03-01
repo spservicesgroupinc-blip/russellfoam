@@ -101,11 +101,12 @@ interface ContextState {
   ui: UIState;
 }
 
-type Action = 
+type Action =
   | { type: 'SET_SESSION'; payload: UserSession | null }
   | { type: 'LOAD_DATA'; payload: Partial<CalculatorState> }
   | { type: 'UPDATE_DATA'; payload: Partial<CalculatorState> }
   | { type: 'UPDATE_NESTED_DATA'; category: keyof CalculatorState; field: string; value: any }
+  | { type: 'UPDATE_ESTIMATE'; payload: { id: string; executionStatus: string; actuals?: any } }
   | { type: 'SET_VIEW'; payload: ViewType }
   | { type: 'SET_SYNC_STATUS'; payload: UIState['syncStatus'] }
   | { type: 'SET_NOTIFICATION'; payload: UIState['notification'] }
@@ -160,6 +161,18 @@ const calculatorReducer = (state: ContextState, action: Action): ContextState =>
       return { ...state, ui: { ...state.ui, isLoading: action.payload } };
     case 'SET_INITIALIZED':
       return { ...state, ui: { ...state.ui, isInitialized: action.payload } };
+    case 'UPDATE_ESTIMATE':
+      return {
+        ...state,
+        appData: {
+          ...state.appData,
+          savedEstimates: state.appData.savedEstimates.map(e =>
+            e.id === action.payload.id
+              ? { ...e, executionStatus: action.payload.executionStatus as any, actuals: action.payload.actuals ?? e.actuals }
+              : e
+          ),
+        },
+      };
     case 'SET_EDITING_ESTIMATE':
       return { ...state, ui: { ...state.ui, editingEstimateId: action.payload } };
     case 'SET_VIEWING_CUSTOMER':
