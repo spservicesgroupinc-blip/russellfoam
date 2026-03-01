@@ -171,47 +171,23 @@ export const logoutUser = async (): Promise<void> => {
 
 /**
  * Invite a crew member (admin creates an account for them).
+ * Uses the invite-crew Edge Function so the admin's session is not replaced.
  */
 export const inviteCrewMember = async (
   email: string,
   password: string,
   crewProfile: Partial<CrewProfile>
 ): Promise<void> => {
-  const companyId = await getCompanyId();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Not authenticated');
 
-  // Create the crew user via Supabase Auth admin invite or signUp
-  // For now, use signUp with pre-known password (admin sets it)
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        company_name: '', // Will be associated with existing company
-        display_name: crewProfile.name || email,
-        role: 'crew',
-      },
-    },
+  const { data, error } = await supabase.functions.invoke('invite-crew', {
+    body: { email, password, crewProfile },
+    headers: { Authorization: `Bearer ${session.access_token}` },
   });
 
   if (error) throw new Error(error.message);
-
-  // Override the trigger-created profile to link to the admin's company instead
-  if (data.user) {
-    await supabase
-      .from('profiles')
-      .update({
-        company_id: companyId,
-        role: 'crew',
-        display_name: crewProfile.name || email,
-        crew_metadata: {
-          leadName: crewProfile.leadName || '',
-          phone: crewProfile.phone || '',
-          truckInfo: crewProfile.truckInfo || '',
-          status: crewProfile.status || 'Active',
-        },
-      })
-      .eq('id', data.user.id);
-  }
+  if (data?.error) throw new Error(data.error);
 };
 
 // ─── Sync Down (Read All) ─────────────────────────────────
