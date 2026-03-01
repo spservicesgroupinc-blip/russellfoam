@@ -44,8 +44,8 @@ export const Customers: React.FC<CustomersProps> = ({
       setFormData(customer);
     } else {
       setFormData({ 
-        id: Math.random().toString(36).substr(2, 9), 
-        name: '', address: '', city: '', state: '', zip: '', email: '', phone: '', notes: '', status: 'Active' 
+        id: crypto.randomUUID(),
+        name: '', address: '', city: '', state: '', zip: '', email: '', phone: '', notes: '', status: 'Active'
       });
     }
     setIsModalOpen(true);

@@ -41,14 +41,14 @@ export const useEstimates = () => {
         return null; 
     }
 
-    const estimateId = ui.editingEstimateId || Math.random().toString(36).substr(2, 9);
+    const estimateId = ui.editingEstimateId || crypto.randomUUID();
     const existingRecord = appData.savedEstimates.find(e => e.id === estimateId);
     
     let newStatus: EstimateRecord['status'] = targetStatus || (existingRecord?.status || 'Draft');
 
     const newEstimate: EstimateRecord = {
       id: estimateId,
-      customerId: appData.customerProfile.id || Math.random().toString(36).substr(2, 9),
+      customerId: appData.customerProfile.id || crypto.randomUUID(),
       date: existingRecord?.date || new Date().toISOString(),
       scheduledDate: appData.scheduledDate,
       assignedCrewId: appData.assignedCrewId,
@@ -115,7 +115,7 @@ export const useEstimates = () => {
     dispatch({ type: 'SET_EDITING_ESTIMATE', payload: estimateId });
     
     if (!appData.customers.find(c => c.id === appData.customerProfile.id)) {
-        const newCustomer = { ...appData.customerProfile, id: appData.customerProfile.id || Math.random().toString(36).substr(2, 9) };
+        const newCustomer = { ...appData.customerProfile, id: appData.customerProfile.id || crypto.randomUUID() };
         saveCustomer(newCustomer);
     }
 
