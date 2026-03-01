@@ -160,6 +160,34 @@ export const calculateResults = (state: CalculatorState): CalculationResults => 
   const openCellStrokes = openCellSets * (state.yields.openCellStrokes || 0);
   const closedCellStrokes = closedCellSets * (state.yields.closedCellStrokes || 0);
 
+  // 7. Cost Calculations
+  const costs = state.costs;
+  const expenses = state.expenses || { manHours: 0, tripCharge: 0 };
+  const pricingMode = state.pricingMode || 'level_pricing';
+  const sqFtRates = state.sqFtRates || { wall: 0, roof: 0 };
+
+  // Material cost = sets * cost per set
+  const materialCost = 
+    (openCellSets * (costs?.openCell || 0)) + 
+    (closedCellSets * (costs?.closedCell || 0));
+
+  // Labor cost = man hours * labor rate
+  const laborCost = (expenses.manHours || 0) * (costs?.laborRate || 0);
+
+  // Misc expenses (trip/fuel charge + inventory item costs)
+  const inventoryCost = (state.inventory || []).reduce((sum, item) => {
+    return sum + ((item.quantity || 0) * (item.unitCost || 0));
+  }, 0);
+  const miscExpenses = (expenses.tripCharge || 0) + inventoryCost;
+
+  // Total cost depends on pricing mode
+  let totalCost: number;
+  if (pricingMode === 'sqft_pricing') {
+    totalCost = (totalWallArea * (sqFtRates.wall || 0)) + (totalRoofArea * (sqFtRates.roof || 0));
+  } else {
+    totalCost = materialCost + laborCost + miscExpenses;
+  }
+
   return {
     perimeter: Number(perimeter.toFixed(2)),
     slopeFactor: Number(slopeFactor.toFixed(2)),
@@ -175,6 +203,10 @@ export const calculateResults = (state: CalculatorState): CalculationResults => 
     openCellSets: Number(openCellSets.toFixed(2)),
     closedCellSets: Number(closedCellSets.toFixed(2)),
     openCellStrokes: Math.ceil(openCellStrokes),
-    closedCellStrokes: Math.ceil(closedCellStrokes)
+    closedCellStrokes: Math.ceil(closedCellStrokes),
+    totalCost: Number(totalCost.toFixed(2)),
+    materialCost: Number(materialCost.toFixed(2)),
+    laborCost: Number(laborCost.toFixed(2)),
+    miscExpenses: Number(miscExpenses.toFixed(2)),
   };
 };

@@ -109,7 +109,7 @@ const SprayFoamCalculator: React.FC = () => {
   };
 
   const addInventoryItem = () => {
-      const newItem = { id: Math.random().toString(36).substr(2,9), name: '', quantity: 1, unit: 'pcs' };
+      const newItem = { id: crypto.randomUUID(), name: '', quantity: 1, unit: 'pcs' };
       dispatch({ type: 'UPDATE_DATA', payload: { inventory: [...appData.inventory, newItem] } });
   };
 
@@ -225,7 +225,7 @@ const SprayFoamCalculator: React.FC = () => {
             <Warehouse 
                 state={appData}
                 onStockChange={handleWarehouseStockChange}
-                onAddItem={() => dispatch({ type: 'UPDATE_DATA', payload: { warehouse: { ...appData.warehouse, items: [...appData.warehouse.items, { id: Math.random().toString(36).substr(2,9), name: '', quantity: 0, unit: 'pcs' }] } } })}
+                onAddItem={() => dispatch({ type: 'UPDATE_DATA', payload: { warehouse: { ...appData.warehouse, items: [...appData.warehouse.items, { id: crypto.randomUUID(), name: '', quantity: 0, unit: 'pcs' }] } } })}
                 onRemoveItem={(id) => dispatch({ type: 'UPDATE_DATA', payload: { warehouse: { ...appData.warehouse, items: appData.warehouse.items.filter(i => i.id !== id) } } })}
                 onUpdateItem={updateWarehouseItem}
                 onFinishSetup={() => dispatch({ type: 'SET_VIEW', payload: 'dashboard' })}

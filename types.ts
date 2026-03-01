@@ -195,6 +195,17 @@ export interface CalculatorState {
   savedEstimates: EstimateRecord[];
   materialLogs?: MaterialUsageLogEntry[]; // NEW: Material Tracking Ledger
   
+  // Pricing & Expenses
+  pricingMode?: 'level_pricing' | 'sqft_pricing';
+  sqFtRates?: {
+    wall: number;
+    roof: number;
+  };
+  expenses?: {
+    manHours: number;
+    tripCharge: number;
+  };
+
   // UI State for notes
   jobNotes?: string;
   scheduledDate?: string;
@@ -221,6 +232,12 @@ export interface CalculationResults {
   
   openCellStrokes: number;
   closedCellStrokes: number;
+
+  // Cost fields
+  totalCost: number;
+  materialCost: number;
+  laborCost: number;
+  miscExpenses: number;
 }
 
 export interface UserSession {
