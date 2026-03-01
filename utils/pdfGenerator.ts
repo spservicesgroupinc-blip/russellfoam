@@ -209,12 +209,13 @@ export const generateEstimatePDF = (state: CalculatorState, results: Calculation
 }
 
 // Work Order - Designed for Crew (No Pricing)
-export const generateWorkOrderPDF = (state: CalculatorState, record: EstimateRecord) => {
+
+const buildWorkOrderPDF = (state: CalculatorState, record: EstimateRecord): jsPDF => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
 
   let yPos = drawCompanyHeader(doc, state, "WORK ORDER");
-  
+
   // Job Info Box
   doc.setFillColor(ACCENT_COLOR[0], ACCENT_COLOR[1], ACCENT_COLOR[2]); // RFE Red Background
   doc.rect(15, yPos, pageWidth - 30, 10, 'F');
@@ -223,9 +224,9 @@ export const generateWorkOrderPDF = (state: CalculatorState, record: EstimateRec
   doc.setFont(undefined, 'bold');
   doc.text(`JOB #${record.id.substring(0, 8).toUpperCase()}`, 20, yPos + 7);
   doc.text(`CREATED: ${new Date(record.date).toLocaleDateString()}`, pageWidth - 20, yPos + 7, { align: 'right' });
-  
+
   yPos += 15;
-  
+
   // Customer & Site Details
   doc.setFontSize(14);
   doc.setTextColor(0, 0, 0);
@@ -234,7 +235,7 @@ export const generateWorkOrderPDF = (state: CalculatorState, record: EstimateRec
   doc.setFont(undefined, 'normal');
   doc.text(record.customer.address, 20, yPos + 5);
   doc.text(`${record.customer.city}, ${record.customer.state} ${record.customer.zip}`, 20, yPos + 10);
-  
+
   if (record.customer.phone) doc.text(`Phone: ${record.customer.phone}`, 20, yPos + 18);
 
   // Scheduled Date Display
@@ -244,12 +245,12 @@ export const generateWorkOrderPDF = (state: CalculatorState, record: EstimateRec
       doc.text(`SCHEDULED: ${new Date(record.scheduledDate).toLocaleDateString()}`, pageWidth - 20, yPos, { align: 'right' });
       doc.setTextColor(0, 0, 0);
   }
-  
+
   if (record.assignedCrewId) {
       const crew = state.crews?.find(c => c.id === record.assignedCrewId);
       const crewName = crew?.name || 'Unknown Crew';
       const crewDetails = [crew?.leadName, crew?.truckInfo].filter(Boolean).join(' - ');
-      
+
       doc.setFont(undefined, 'bold');
       doc.text(`CREW: ${crewName}`, pageWidth - 20, yPos + 6, { align: 'right' });
       if (crewDetails) {
@@ -259,16 +260,16 @@ export const generateWorkOrderPDF = (state: CalculatorState, record: EstimateRec
           doc.setFontSize(12);
       }
   }
-  
+
   yPos += 30;
-  
+
   // Job Scope Table
   doc.setFontSize(12);
   doc.setFont(undefined, 'bold');
   doc.setTextColor(BRAND_COLOR[0], BRAND_COLOR[1], BRAND_COLOR[2]);
   doc.text("INSTALLATION SCOPE", 15, yPos);
   yPos += 5;
-  
+
   const scopeRows = [];
   if (record.results.wallBdFt > 0) {
       scopeRows.push([
@@ -284,7 +285,7 @@ export const generateWorkOrderPDF = (state: CalculatorState, record: EstimateRec
           `${Math.round(record.results.roofBdFt).toLocaleString()} bdft`
       ]);
   }
-  
+
   autoTable(doc, {
     startY: yPos,
     head: [['Area', 'Spec', 'Volume']],
@@ -292,22 +293,22 @@ export const generateWorkOrderPDF = (state: CalculatorState, record: EstimateRec
     theme: 'grid',
     headStyles: { fillColor: BRAND_COLOR }
   });
-  
+
   // @ts-ignore
   yPos = doc.lastAutoTable.finalY + 15;
-  
+
   // Materials List (The Prep Items)
   doc.text("MATERIALS & PREP LOAD LIST", 15, yPos);
   yPos += 5;
-  
+
   const matRows = [];
   if (record.materials.openCellSets > 0) matRows.push(['Open Cell Foam', `${record.materials.openCellSets.toFixed(2)} Sets`]);
   if (record.materials.closedCellSets > 0) matRows.push(['Closed Cell Foam', `${record.materials.closedCellSets.toFixed(2)} Sets`]);
-  
+
   record.materials.inventory.forEach(item => {
       matRows.push([item.name, `${item.quantity} ${item.unit}`]);
   });
-  
+
   autoTable(doc, {
     startY: yPos,
     head: [['Item', 'Quantity']],
@@ -315,10 +316,10 @@ export const generateWorkOrderPDF = (state: CalculatorState, record: EstimateRec
     theme: 'grid',
     headStyles: { fillColor: ACCENT_COLOR }
   });
-  
+
   // @ts-ignore
   yPos = doc.lastAutoTable.finalY + 15;
-  
+
   // Notes
   if (record.notes) {
       doc.text("CREW NOTES / GATE CODES / INSTRUCTIONS", 15, yPos);
@@ -328,5 +329,15 @@ export const generateWorkOrderPDF = (state: CalculatorState, record: EstimateRec
       doc.text(record.notes, 15, yPos + 5, { maxWidth: pageWidth - 30 });
   }
 
+  return doc;
+};
+
+export const generateWorkOrderPDF = (state: CalculatorState, record: EstimateRecord): void => {
+  const doc = buildWorkOrderPDF(state, record);
   doc.save(`${record.customer.name.replace(/\s+/g, '_')}_WorkOrder.pdf`);
+};
+
+export const getWorkOrderPDFBase64 = (state: CalculatorState, record: EstimateRecord): string => {
+  const doc = buildWorkOrderPDF(state, record);
+  return doc.output('datauristring');
 };

@@ -8,6 +8,7 @@ create table if not exists public.company_settings (
   foam_counts  jsonb not null default '{"openCellSets": 0, "closedCellSets": 0}',
   sq_ft_rates  jsonb,
   pricing_mode text,
+  expenses     jsonb,
   crews        jsonb not null default '[]',
   updated_at   timestamptz not null default now()
 );

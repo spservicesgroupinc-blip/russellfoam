@@ -7,7 +7,7 @@ import {
     MessageSquare
 } from 'lucide-react';
 import { CalculatorState, EstimateRecord } from '../types';
-import { logCrewTime, completeJob, syncDown, getCurrentSession } from '../services/supabaseApi';
+import { logCrewTime, completeJob, syncDown, getCurrentSession, updateEstimateExecutionStatus } from '../services/supabaseApi';
 
 interface CrewDashboardProps {
   state: CalculatorState;
@@ -87,12 +87,15 @@ export const CrewDashboard: React.FC<CrewDashboardProps> = ({ state, onLogout, s
   });
   const selectedJob = selectedJobId ? state.savedEstimates.find(j => j.id === selectedJobId) : null;
 
-  const handleStartTimer = () => {
+  const handleStartTimer = async () => {
       const now = new Date().toISOString();
       setJobStartTime(now);
       setIsTimerRunning(true);
       localStorage.setItem('foamPro_crewStartTime', now);
-      if (selectedJobId) localStorage.setItem('foamPro_crewActiveJob', selectedJobId);
+      if (selectedJobId) {
+          localStorage.setItem('foamPro_crewActiveJob', selectedJobId);
+          await updateEstimateExecutionStatus(selectedJobId, 'In Progress');
+      }
   };
 
   const handleStopTimer = async (isCompletion: boolean) => {

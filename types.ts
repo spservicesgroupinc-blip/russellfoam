@@ -52,8 +52,7 @@ export interface FoamSettings {
 export interface CrewProfile {
   id: string;
   name: string;
-  username: string; // Replaces PIN
-  password?: string; // Replaces PIN
+  email?: string;   // Supabase Auth login email — stored in crew_metadata for display
   leadName?: string;
   phone?: string;
   truckInfo?: string;

@@ -181,12 +181,24 @@ export const inviteCrewMember = async (
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Not authenticated');
 
-  const { data, error } = await supabase.functions.invoke('invite-crew', {
-    body: { email, password, crewProfile },
-    headers: { Authorization: `Bearer ${session.access_token}` },
+  // Use raw fetch so the Authorization header and apikey are set explicitly.
+  // supabase.functions.invoke does not reliably forward the session JWT when
+  // a custom storageKey is configured, causing a consistent 401 at the gateway.
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+  const response = await fetch(`${supabaseUrl}/functions/v1/invite-crew`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': supabaseAnonKey,
+      'Authorization': `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ email, password, crewProfile }),
   });
 
-  if (error) throw new Error(error.message);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.error || `Request failed: ${response.status}`);
   if (data?.error) throw new Error(data.error);
 };
 
@@ -274,7 +286,7 @@ export const syncDown = async (): Promise<Partial<CalculatorState> | null> => {
     const mappedCrews: CrewProfile[] = crewProfiles.map((p: any) => ({
       id: p.id,
       name: p.display_name || '',
-      username: p.display_name || '',
+      email: p.crew_metadata?.email || '',
       leadName: p.crew_metadata?.leadName || '',
       phone: p.crew_metadata?.phone || '',
       truckInfo: p.crew_metadata?.truckInfo || '',
@@ -287,6 +299,9 @@ export const syncDown = async (): Promise<Partial<CalculatorState> | null> => {
       companyProfile: settings?.profile || {},
       costs: settings?.costs,
       yields: settings?.yields || {},
+      pricingMode: settings?.pricing_mode ?? undefined,
+      sqFtRates: settings?.sq_ft_rates ?? undefined,
+      expenses: settings?.expenses ?? undefined,
       warehouse: {
         openCellSets: foamCounts.openCellSets || 0,
         closedCellSets: foamCounts.closedCellSets || 0,
@@ -324,6 +339,9 @@ export const syncUp = async (state: CalculatorState): Promise<boolean> => {
           openCellSets: state.warehouse.openCellSets,
           closedCellSets: state.warehouse.closedCellSets,
         },
+        pricing_mode: state.pricingMode ?? null,
+        sq_ft_rates: state.sqFtRates ?? null,
+        expenses: state.expenses ?? null,
         crews: state.crews,
         updated_at: new Date().toISOString(),
       })
@@ -401,6 +419,28 @@ export const syncUp = async (state: CalculatorState): Promise<boolean> => {
       }));
 
       await supabase.from('warehouse_items').upsert(warehouseRows, { onConflict: 'id' });
+    }
+
+    // 5. Update crew metadata in profiles table (source of truth for syncDown)
+    if (state.crews.length > 0) {
+      await Promise.all(
+        state.crews.map((crew) =>
+          supabase
+            .from('profiles')
+            .update({
+              display_name: crew.name,
+              crew_metadata: {
+                email: crew.email || '',   // preserve login email
+                leadName: crew.leadName || '',
+                phone: crew.phone || '',
+                truckInfo: crew.truckInfo || '',
+                status: crew.status || 'Active',
+              },
+            })
+            .eq('id', crew.id)
+            .eq('role', 'crew')
+        )
+      );
     }
 
     return true;
@@ -558,6 +598,21 @@ export const logCrewTime = async (
     console.error('logCrewTime error:', error);
     return false;
   }
+};
+
+/**
+ * Updates the execution status of an estimate directly.
+ * Used by crew members (who bypass auto-sync) to signal job start/completion.
+ */
+export const updateEstimateExecutionStatus = async (
+  estimateId: string,
+  status: 'Not Started' | 'In Progress' | 'Completed'
+): Promise<boolean> => {
+  const { error } = await supabase
+    .from('estimates')
+    .update({ execution_status: status, updated_at: new Date().toISOString() })
+    .eq('id', estimateId);
+  return !error;
 };
 
 /**

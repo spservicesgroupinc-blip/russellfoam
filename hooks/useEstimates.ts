@@ -3,7 +3,7 @@ import React from 'react';
 import { useCalculator, DEFAULT_STATE } from '../context/CalculatorContext';
 import { EstimateRecord, CalculationResults, CustomerProfile } from '../types';
 import { deleteEstimate, syncUp, savePdfToStorage } from '../services/supabaseApi';
-import { generateWorkOrderPDF, generateDocumentPDF } from '../utils/pdfGenerator';
+import { generateWorkOrderPDF, generateDocumentPDF, getWorkOrderPDFBase64 } from '../utils/pdfGenerator';
 
 export const useEstimates = () => {
   const { state, dispatch } = useCalculator();
@@ -224,14 +224,44 @@ export const useEstimates = () => {
             dispatch({ type: 'SET_NOTIFICATION', payload: { type: 'success', message: 'Work Order Updated. Syncing...' } });
         }
         dispatch({ type: 'SET_SYNC_STATUS', payload: 'syncing' });
-        
-        // Sync updated state to Supabase
-        const updatedState = { ...appData, warehouse: newWarehouse };
+
+        // Build correct state with the new estimate included.
+        // We cannot use appData directly here because saveEstimate() dispatches
+        // to React context and that update hasn't been processed yet.
+        const existingEstimates = appData.savedEstimates;
+        const idx = existingEstimates.findIndex(e => e.id === record!.id);
+        const updatedEstimates = idx >= 0
+          ? existingEstimates.map(e => e.id === record!.id ? record! : e)
+          : [record!, ...existingEstimates];
+        const updatedState = { ...appData, warehouse: newWarehouse, savedEstimates: updatedEstimates };
         await syncUp(updatedState);
 
         dispatch({ type: 'SET_NOTIFICATION', payload: { type: 'success', message: 'Work Order Created & Synced' } });
         dispatch({ type: 'SET_SYNC_STATUS', payload: 'idle' });
+
+        // Trigger browser download
         generateWorkOrderPDF(appData, record!);
+
+        // Upload to Supabase Storage. Do NOT pass estimateId here — the estimate
+        // was just synced above and passing the ID before the transaction settles
+        // causes a documents FK violation. The URL is patched onto the estimate
+        // via dispatch + the next auto-sync write.
+        try {
+          const pdfBase64 = getWorkOrderPDFBase64(appData, record!);
+          const safeName = record!.customer.name.replace(/\s+/g, '_');
+          const fileName = `${safeName}_WorkOrder_${record!.id.substring(0, 8)}.pdf`;
+          const pdfUrl = await savePdfToStorage(fileName, pdfBase64);
+          if (pdfUrl) {
+            const withUrl = { ...record!, workOrderSheetUrl: pdfUrl };
+            const patchedEstimates = updatedEstimates.map(e =>
+              e.id === record!.id ? withUrl : e
+            );
+            dispatch({ type: 'UPDATE_DATA', payload: { savedEstimates: patchedEstimates } });
+          }
+        } catch (pdfErr) {
+          console.error('Work order PDF upload failed:', pdfErr);
+        }
+
         dispatch({ type: 'SET_VIEW', payload: 'dashboard' });
     }
   };

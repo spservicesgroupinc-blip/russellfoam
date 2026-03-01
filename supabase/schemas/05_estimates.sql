@@ -7,7 +7,7 @@ create table if not exists public.estimates (
   execution_status  text not null default 'Not Started' check (execution_status in ('Not Started', 'In Progress', 'Completed')),
   date              timestamptz not null default now(),
   scheduled_date    timestamptz,
-  assigned_crew_id  uuid references public.profiles(id) on delete set null,
+  assigned_crew_id  uuid, -- no FK: local crews exist only in company_settings.crews JSONB
   customer_snapshot jsonb not null default '{}',
   inputs            jsonb not null default '{}',
   results           jsonb not null default '{}',
