@@ -172,12 +172,13 @@ export const logoutUser = async (): Promise<void> => {
 /**
  * Invite a crew member (admin creates an account for them).
  * Uses the invite-crew Edge Function so the admin's session is not replaced.
+ * Returns the new crew member's profile ID.
  */
 export const inviteCrewMember = async (
   email: string,
   password: string,
   crewProfile: Partial<CrewProfile>
-): Promise<void> => {
+): Promise<string> => {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Not authenticated');
 
@@ -200,6 +201,61 @@ export const inviteCrewMember = async (
   const data = await response.json();
   if (!response.ok) throw new Error(data?.error || `Request failed: ${response.status}`);
   if (data?.error) throw new Error(data.error);
+  return data.userId;
+};
+
+/**
+ * Update a crew member's metadata (name, phone, truck info, status).
+ * Admin updates the crew's profile row directly.
+ */
+export const updateCrewMember = async (
+  crewProfileId: string,
+  updates: Partial<CrewProfile>
+): Promise<boolean> => {
+  try {
+    const updatePayload: any = {};
+    if (updates.name !== undefined) updatePayload.display_name = updates.name;
+    updatePayload.crew_metadata = {
+      leadName: updates.leadName || '',
+      phone: updates.phone || '',
+      truckInfo: updates.truckInfo || '',
+      status: updates.status || 'Active',
+    };
+
+    const { error } = await supabase
+      .from('profiles')
+      .update(updatePayload)
+      .eq('id', crewProfileId);
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('updateCrewMember error:', error);
+    return false;
+  }
+};
+
+/**
+ * Deactivate a crew member (set status to Inactive).
+ * We don't delete auth users — just mark them inactive.
+ */
+export const deactivateCrewMember = async (
+  crewProfileId: string
+): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        crew_metadata: { status: 'Inactive' },
+      })
+      .eq('id', crewProfileId);
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('deactivateCrewMember error:', error);
+    return false;
+  }
 };
 
 // ─── Sync Down (Read All) ─────────────────────────────────
@@ -219,7 +275,7 @@ export const syncDown = async (): Promise<Partial<CalculatorState> | null> => {
         supabase.from('estimates').select('*').eq('company_id', companyId).order('date', { ascending: false }),
         supabase.from('warehouse_items').select('*').eq('company_id', companyId),
         supabase.from('material_logs').select('*').eq('company_id', companyId).order('date', { ascending: false }).limit(500),
-        supabase.from('profiles').select('*').eq('company_id', companyId).eq('role', 'crew'),
+        supabase.from('crew_profiles_with_email').select('*').eq('company_id', companyId),
       ]);
 
     const settings = settingsRes.data;
@@ -286,7 +342,7 @@ export const syncDown = async (): Promise<Partial<CalculatorState> | null> => {
     const mappedCrews: CrewProfile[] = crewProfiles.map((p: any) => ({
       id: p.id,
       name: p.display_name || '',
-      email: p.crew_metadata?.email || '',
+      username: p.email || p.display_name || '',
       leadName: p.crew_metadata?.leadName || '',
       phone: p.crew_metadata?.phone || '',
       truckInfo: p.crew_metadata?.truckInfo || '',
@@ -328,7 +384,7 @@ export const syncUp = async (state: CalculatorState): Promise<boolean> => {
   try {
     const companyId = await getCompanyId();
 
-    // 1. Update company settings
+    // 1. Update company settings (crews are managed via profiles table, not here)
     await supabase
       .from('company_settings')
       .update({
@@ -342,7 +398,6 @@ export const syncUp = async (state: CalculatorState): Promise<boolean> => {
         pricing_mode: state.pricingMode ?? null,
         sq_ft_rates: state.sqFtRates ?? null,
         expenses: state.expenses ?? null,
-        crews: state.crews,
         updated_at: new Date().toISOString(),
       })
       .eq('company_id', companyId);

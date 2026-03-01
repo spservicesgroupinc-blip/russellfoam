@@ -69,7 +69,7 @@ export const WorkOrderStage: React.FC<WorkOrderStageProps> = ({
                          onChange={(e) => onUpdateState('assignedCrewId', e.target.value)}
                       >
                          <option value="">Unassigned</option>
-                         {(state.crews || []).map(crew => (
+                         {(state.crews || []).filter(c => c.status !== 'Inactive').map(crew => (
                              <option key={crew.id} value={crew.id}>
                                  {crew.name} {crew.leadName ? `(${crew.leadName})` : ''} {crew.truckInfo ? `- ${crew.truckInfo}` : ''}
                              </option>

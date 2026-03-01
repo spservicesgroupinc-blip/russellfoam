@@ -138,6 +138,8 @@ DECLARE
   user_role       text;
   company_name    text;
   display_name    text;
+  crew_company_id uuid;
+  crew_meta       jsonb;
 BEGIN
   user_role    := COALESCE(NEW.raw_user_meta_data->>'role', 'admin');
   company_name := COALESCE(NEW.raw_user_meta_data->>'company_name', 'My Company');
@@ -172,10 +174,12 @@ BEGIN
     );
 
   ELSE
-    -- Crew member: create profile with null company_id.
-    -- The admin's inviteCrewMember() call will update it.
-    INSERT INTO public.profiles (id, company_id, role, display_name)
-    VALUES (NEW.id, NULL, 'crew', display_name);
+    -- Crew member: read company_id from user_metadata (set by admin's invite-crew Edge Function)
+    crew_company_id := (NEW.raw_user_meta_data->>'company_id')::uuid;
+    crew_meta := COALESCE(NEW.raw_user_meta_data->'crew_metadata', '{}'::jsonb);
+
+    INSERT INTO public.profiles (id, company_id, role, display_name, crew_metadata)
+    VALUES (NEW.id, crew_company_id, 'crew', display_name, crew_meta);
   END IF;
 
   RETURN NEW;
@@ -300,3 +304,20 @@ CREATE INDEX IF NOT EXISTS idx_warehouse_items_company_id ON public.warehouse_it
 CREATE INDEX IF NOT EXISTS idx_material_logs_company_id   ON public.material_logs(company_id);
 CREATE INDEX IF NOT EXISTS idx_material_logs_date         ON public.material_logs(date DESC);
 CREATE INDEX IF NOT EXISTS idx_documents_company_id       ON public.documents(company_id);
+
+-- ─── Views ────────────────────────────────────────────────
+-- Crew profiles joined with auth.users to expose login email.
+-- RLS is inherited from profiles table policies.
+CREATE OR REPLACE VIEW public.crew_profiles_with_email AS
+SELECT 
+  p.id,
+  p.company_id,
+  p.display_name,
+  p.crew_metadata,
+  p.created_at,
+  u.email
+FROM public.profiles p
+JOIN auth.users u ON u.id = p.id
+WHERE p.role = 'crew';
+
+GRANT SELECT ON public.crew_profiles_with_email TO authenticated;
