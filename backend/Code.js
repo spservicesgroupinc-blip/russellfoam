@@ -274,7 +274,7 @@ function handleSyncUp(ss, payload) {
   }
 
   // 2. Settings (Split Warehouse)
-  const settingsKeys = ['companyProfile', 'crews', 'yields', 'costs', 'expenses', 'jobNotes', 'purchaseOrders', 'sqFtRates', 'pricingMode'];
+  const settingsKeys = ['companyProfile', 'crews', 'yields', 'costs', 'expenses', 'jobNotes', 'sqFtRates', 'pricingMode'];
   const sSheet = ss.getSheetByName(CONSTANTS.TAB_SETTINGS);
   const existingData = sSheet.getDataRange().getValues();
   const settingsMap = new Map();

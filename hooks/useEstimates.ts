@@ -1,8 +1,8 @@
 
 import React from 'react';
 import { useCalculator, DEFAULT_STATE } from '../context/CalculatorContext';
-import { EstimateRecord, CalculationResults, CustomerProfile, PurchaseOrder } from '../types';
-import { deleteEstimate, createWorkOrderSheet, syncUp } from '../services/api';
+import { EstimateRecord, CalculationResults, CustomerProfile } from '../types';
+import { deleteEstimate, syncUp, savePdfToStorage } from '../services/supabaseApi';
 import { generateWorkOrderPDF, generateDocumentPDF } from '../utils/pdfGenerator';
 
 export const useEstimates = () => {
@@ -158,13 +158,11 @@ export const useEstimates = () => {
           dispatch({ type: 'SET_EDITING_ESTIMATE', payload: null }); 
           dispatch({ type: 'SET_VIEW', payload: 'dashboard' }); 
       }
-      if (session?.spreadsheetId) {
-          try {
-              await deleteEstimate(id, session.spreadsheetId);
-              dispatch({ type: 'SET_NOTIFICATION', payload: { type: 'success', message: 'Job Deleted' } });
-          } catch (err) {
-              dispatch({ type: 'SET_NOTIFICATION', payload: { type: 'error', message: 'Local delete success, but server failed.' } });
-          }
+      try {
+          await deleteEstimate(id);
+          dispatch({ type: 'SET_NOTIFICATION', payload: { type: 'success', message: 'Job Deleted' } });
+      } catch (err) {
+          dispatch({ type: 'SET_NOTIFICATION', payload: { type: 'error', message: 'Local delete success, but server failed.' } });
       }
     }
   };
@@ -204,7 +202,7 @@ export const useEstimates = () => {
             const proceed = confirm(`⚠️ INVENTORY SHORTAGE DETECTED ⚠️\n\n${warnings.join('\n')}\n\n- Click OK to PROCEED with Work Order (Inventory will go negative).\n- Click CANCEL to stop and order materials first.`);
             
             if (!proceed) {
-                dispatch({ type: 'SET_VIEW', payload: 'material_order' });
+                dispatch({ type: 'SET_VIEW', payload: 'warehouse' });
                 return;
             }
         }
@@ -221,54 +219,21 @@ export const useEstimates = () => {
     
     if (record) {
         if (!isAlreadySold) {
-            dispatch({ type: 'SET_NOTIFICATION', payload: { type: 'success', message: 'Inventory Deducted. Generating File...' } });
+            dispatch({ type: 'SET_NOTIFICATION', payload: { type: 'success', message: 'Inventory Deducted. Syncing...' } });
         } else {
-            dispatch({ type: 'SET_NOTIFICATION', payload: { type: 'success', message: 'Work Order Updated. Generating File...' } });
+            dispatch({ type: 'SET_NOTIFICATION', payload: { type: 'success', message: 'Work Order Updated. Syncing...' } });
         }
         dispatch({ type: 'SET_SYNC_STATUS', payload: 'syncing' });
         
-        if (session?.spreadsheetId) {
-             const updatedState = { ...appData, warehouse: newWarehouse };
-             await syncUp(updatedState, session.spreadsheetId);
-             
-             // NEW: Pass folderId and spreadsheetId to backend
-             const woUrl = await createWorkOrderSheet(record, session.folderId, session.spreadsheetId);
-             if (woUrl) {
-                 record = await saveEstimate(results, 'Work Order', { workOrderSheetUrl: woUrl });
-                 dispatch({ type: 'SET_NOTIFICATION', payload: { type: 'success', message: 'Work Order Created & Synced' } });
-             }
-        }
+        // Sync updated state to Supabase
+        const updatedState = { ...appData, warehouse: newWarehouse };
+        await syncUp(updatedState);
 
+        dispatch({ type: 'SET_NOTIFICATION', payload: { type: 'success', message: 'Work Order Created & Synced' } });
         dispatch({ type: 'SET_SYNC_STATUS', payload: 'idle' });
         generateWorkOrderPDF(appData, record!);
         dispatch({ type: 'SET_VIEW', payload: 'dashboard' });
     }
-  };
-
-  const createPurchaseOrder = async (po: PurchaseOrder) => {
-      // Add stock to warehouse
-      const newWarehouse = { ...appData.warehouse };
-      po.items.forEach(item => {
-          if (item.type === 'open_cell') newWarehouse.openCellSets += item.quantity;
-          if (item.type === 'closed_cell') newWarehouse.closedCellSets += item.quantity;
-          if (item.type === 'inventory' && item.inventoryId) {
-              const invItem = newWarehouse.items.find(i => i.id === item.inventoryId);
-              if (invItem) invItem.quantity += item.quantity;
-          }
-      });
-
-      const updatedPOs = [...(appData.purchaseOrders || []), po];
-      
-      dispatch({ type: 'UPDATE_DATA', payload: { warehouse: newWarehouse, purchaseOrders: updatedPOs } });
-      dispatch({ type: 'SET_NOTIFICATION', payload: { type: 'success', message: 'Order Saved & Stock Updated' } });
-      dispatch({ type: 'SET_VIEW', payload: 'warehouse' });
-      
-      if (session?.spreadsheetId) {
-          dispatch({ type: 'SET_SYNC_STATUS', payload: 'syncing' });
-          const updatedState = { ...appData, warehouse: newWarehouse, purchaseOrders: updatedPOs };
-          await syncUp(updatedState, session.spreadsheetId);
-          dispatch({ type: 'SET_SYNC_STATUS', payload: 'idle' });
-      }
   };
 
   return {
@@ -276,7 +241,6 @@ export const useEstimates = () => {
     saveEstimate,
     handleDeleteEstimate,
     saveCustomer,
-    confirmWorkOrder,
-    createPurchaseOrder
+    confirmWorkOrder
   };
 };

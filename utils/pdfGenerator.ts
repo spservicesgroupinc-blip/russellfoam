@@ -1,7 +1,7 @@
 
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { CalculatorState, CalculationResults, EstimateRecord, FoamType, PurchaseOrder } from '../types';
+import { CalculatorState, CalculationResults, EstimateRecord, FoamType } from '../types';
 
 const BRAND_COLOR: [number, number, number] = [15, 23, 42]; // Slate 900 (Black/Dark Blue)
 const ACCENT_COLOR: [number, number, number] = [227, 6, 19]; // RFE Red (#E30613)
@@ -207,68 +207,6 @@ export const generateDocumentPDF = (
 export const generateEstimatePDF = (state: CalculatorState, results: CalculationResults, record?: EstimateRecord) => {
     return generateDocumentPDF(state, results, 'ESTIMATE', record);
 }
-
-// Purchase Order PDF
-export const generatePurchaseOrderPDF = (state: CalculatorState, po: PurchaseOrder) => {
-  const doc = new jsPDF();
-  const pageWidth = doc.internal.pageSize.width;
-
-  let yPos = drawCompanyHeader(doc, state, "PURCHASE ORDER");
-  
-  // PO Header
-  doc.setFillColor(ACCENT_COLOR[0], ACCENT_COLOR[1], ACCENT_COLOR[2]); 
-  doc.rect(15, yPos, pageWidth - 30, 10, 'F');
-  doc.setFontSize(12);
-  doc.setTextColor(255, 255, 255);
-  doc.setFont(undefined, 'bold');
-  doc.text(`PO #${po.id.substring(0, 8).toUpperCase()}`, 20, yPos + 7);
-  doc.text(`DATE: ${new Date(po.date).toLocaleDateString()}`, pageWidth - 20, yPos + 7, { align: 'right' });
-  
-  yPos += 20;
-  
-  // Vendor Info
-  doc.setFontSize(14);
-  doc.setTextColor(0, 0, 0);
-  doc.text("Vendor:", 20, yPos);
-  doc.setFont(undefined, 'normal');
-  doc.text(po.vendorName, 20, yPos + 7);
-  
-  yPos += 20;
-  
-  // Items Table
-  const tableRows = po.items.map(item => [
-      item.description,
-      item.quantity,
-      formatCurrency(item.unitCost),
-      formatCurrency(item.total)
-  ]);
-  
-  autoTable(doc, {
-    startY: yPos,
-    head: [['Item Description', 'Qty', 'Unit Cost', 'Total']],
-    body: tableRows,
-    theme: 'grid',
-    headStyles: { fillColor: BRAND_COLOR },
-    columnStyles: { 3: { halign: 'right' } }
-  });
-  
-  // @ts-ignore
-  let finalY = doc.lastAutoTable.finalY + 10;
-  doc.setFontSize(12);
-  doc.setFont(undefined, 'bold');
-  doc.text(`Total Order Value: ${formatCurrency(po.totalCost)}`, pageWidth - 15, finalY, { align: 'right' });
-  
-  if (po.notes) {
-      finalY += 15;
-      doc.setFontSize(10);
-      doc.setTextColor(100);
-      doc.text("Notes:", 15, finalY);
-      doc.setFont(undefined, 'normal');
-      doc.text(po.notes, 15, finalY + 5);
-  }
-
-  doc.save(`PO_${po.vendorName}_${po.id.substring(0,6)}.pdf`);
-};
 
 // Work Order - Designed for Crew (No Pricing)
 export const generateWorkOrderPDF = (state: CalculatorState, record: EstimateRecord) => {

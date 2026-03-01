@@ -62,10 +62,10 @@ export const Profile: React.FC<ProfileProps> = ({ state, onUpdateProfile, onUpda
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                    {/* Read Only Username */}
+                    {/* Read Only Email */}
                     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 relative group">
                         <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                            <ShieldCheck className="w-3 h-3"/> Company ID (Username)
+                            <ShieldCheck className="w-3 h-3"/> Account Email
                         </label>
                         <div className="flex items-center justify-between">
                             <span className="font-mono font-bold text-xl text-slate-700">{username || "Loading..."}</span>

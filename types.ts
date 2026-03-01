@@ -130,7 +130,7 @@ export interface EstimateRecord {
 
   results: CalculationResults;
 
-  // We store a snapshot of critical data to reproduce the material order
+  // We store a snapshot of critical data to reproduce the material estimate
   materials: {
     openCellSets: number;
     closedCellSets: number;
@@ -141,23 +141,6 @@ export interface EstimateRecord {
   roofSettings: FoamSettings;
   
   // Job Specifics
-  notes?: string;
-}
-
-export interface PurchaseOrder {
-  id: string;
-  date: string;
-  vendorName: string;
-  status: 'Ordered' | 'Received';
-  items: {
-    description: string;
-    quantity: number;
-    unitCost: number;
-    total: number;
-    type: 'open_cell' | 'closed_cell' | 'inventory';
-    inventoryId?: string; // If linked to warehouse item
-  }[];
-  totalCost: number;
   notes?: string;
 }
 
@@ -203,7 +186,6 @@ export interface CalculatorState {
   customerProfile: CustomerProfile; // Current working profile (WIP)
 
   savedEstimates: EstimateRecord[];
-  purchaseOrders?: PurchaseOrder[];
   materialLogs?: MaterialUsageLogEntry[]; // NEW: Material Tracking Ledger
   
   // UI State for notes
@@ -235,12 +217,12 @@ export interface CalculationResults {
 }
 
 export interface UserSession {
-  username: string;
+  id: string;
+  email: string;
+  companyId: string;
   companyName: string;
-  spreadsheetId: string;
-  folderId?: string;
-  token?: string;
-  role: 'admin' | 'crew'; // Added Role
+  role: 'admin' | 'crew';
+  displayName: string;
   crewId?: string;
   crewName?: string;
 }

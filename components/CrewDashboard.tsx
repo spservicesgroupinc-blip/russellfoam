@@ -7,7 +7,7 @@ import {
     MessageSquare
 } from 'lucide-react';
 import { CalculatorState, EstimateRecord } from '../types';
-import { logCrewTime, completeJob, syncDown } from '../services/api';
+import { logCrewTime, completeJob, syncDown, getCurrentSession } from '../services/supabaseApi';
 
 interface CrewDashboardProps {
   state: CalculatorState;
@@ -70,16 +70,12 @@ export const CrewDashboard: React.FC<CrewDashboardProps> = ({ state, onLogout, s
       return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
   };
 
-  // Get session from localStorage to filter jobs
-  const getSession = () => {
-      try {
-          const s = localStorage.getItem('foamProSession');
-          return s ? JSON.parse(s) : null;
-      } catch(e) {
-          return null;
-      }
-  };
-  const session = getSession();
+  // Get session from state props (passed via auth context)
+  const [session, setSession] = useState<any>(null);
+  
+  useEffect(() => {
+    getCurrentSession().then(s => setSession(s)).catch(() => {});
+  }, []);
 
   const workOrders = state.savedEstimates.filter(e => {
       if (e.status !== 'Work Order' || e.executionStatus === 'Completed') return false;
@@ -106,21 +102,9 @@ export const CrewDashboard: React.FC<CrewDashboardProps> = ({ state, onLogout, s
           const endTime = new Date().toISOString();
           setIsSyncingTime(true);
           
-          // Log to backend
-          if (selectedJob.workOrderSheetUrl) {
-            let user = "Crew";
-            try {
-                const s = localStorage.getItem('foamProSession');
-                if (s) {
-                    const parsed = JSON.parse(s);
-                    user = parsed.crewName || parsed.username;
-                }
-            } catch(e) {
-                console.warn("Could not retrieve session user for timer log");
-            }
-            
-            await logCrewTime(selectedJob.workOrderSheetUrl, jobStartTime, endTime, user);
-          }
+          // Log time to Supabase via estimate ID
+          const user = session?.crewName || session?.displayName || "Crew";
+          await logCrewTime(selectedJob.id, jobStartTime, endTime, user);
 
           const sessionDurationHours = (new Date(endTime).getTime() - new Date(jobStartTime).getTime()) / (1000 * 60 * 60);
 
@@ -132,7 +116,6 @@ export const CrewDashboard: React.FC<CrewDashboardProps> = ({ state, onLogout, s
           localStorage.removeItem('foamPro_crewActiveJob');
           
           if (isCompletion) {
-              const estLabor = selectedJob.expenses?.manHours || 0;
               // Safe access to materials and inventory
               const estInventory = selectedJob.materials?.inventory ? [...selectedJob.materials.inventory] : [];
               const ocSets = selectedJob.materials?.openCellSets || 0;
@@ -141,7 +124,7 @@ export const CrewDashboard: React.FC<CrewDashboardProps> = ({ state, onLogout, s
               setActuals({
                   openCellSets: ocSets,
                   closedCellSets: ccSets,
-                  laborHours: parseFloat((estLabor || sessionDurationHours).toFixed(1)),
+                  laborHours: parseFloat(sessionDurationHours.toFixed(1)),
                   inventory: estInventory,
                   notes: ''
               });
@@ -159,25 +142,22 @@ export const CrewDashboard: React.FC<CrewDashboardProps> = ({ state, onLogout, s
       setIsCompleting(true);
       
       try {
-        const sessionStr = localStorage.getItem('foamProSession');
-        if (!sessionStr) throw new Error("Session expired. Please log out and back in.");
-        
-        const session = JSON.parse(sessionStr);
-        if (!session.spreadsheetId) throw new Error("Invalid session data. Please log out and back in.");
+        const currentSession = session || await getCurrentSession();
+        if (!currentSession) throw new Error("Session expired. Please log out and back in.");
 
         const finalData = {
             ...actuals,
             completionDate: new Date().toISOString(),
-            completedBy: session.crewName || session.username || "Crew"
+            completedBy: currentSession.crewName || currentSession.displayName || "Crew"
         };
 
-        const success = await completeJob(selectedJob.id, finalData, session.spreadsheetId);
+        const success = await completeJob(selectedJob.id, finalData);
         
         if (success) {
             setShowCompletionModal(false);
             setSelectedJobId(null);
             
-            // Critical: Wait briefly for backend flush, then Force Sync to update UI immediately
+            // Force Sync to update UI immediately
             setTimeout(async () => {
                 try {
                     await onSync(); 

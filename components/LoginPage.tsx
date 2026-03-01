@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, Lock, Building2, ArrowRight, Loader2, AlertCircle, HardHat, KeyRound, Download } from 'lucide-react';
 import { UserSession } from '../types';
-import { loginUser, signupUser, loginCrew } from '../services/api';
+import { loginUser, signupUser, loginCrew } from '../services/supabaseApi';
 
 interface LoginPageProps {
   onLoginSuccess: (session: UserSession) => void;
@@ -17,10 +17,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, installPrompt, on
   const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
-    username: '',
+    email: '',
     password: '',
     companyName: '',
-    crewUsername: '',
+    crewEmail: '',
     crewPassword: ''
   });
 
@@ -31,16 +31,16 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, installPrompt, on
 
     try {
       if (activeTab === 'crew') {
-        const session = await loginCrew(formData.username, formData.crewUsername, formData.crewPassword);
+        const session = await loginCrew(formData.crewEmail, formData.crewPassword);
         if (session) {
             onLoginSuccess(session);
         } else {
-            setError("Invalid Company ID or Credentials");
+            setError("Invalid Credentials");
         }
       } else {
         // Admin Login/Signup
         if (!isSignup) {
-            const session = await loginUser(formData.username, formData.password);
+            const session = await loginUser(formData.email, formData.password);
             if (session) onLoginSuccess(session);
             else setError("Invalid credentials.");
         } else {
@@ -49,9 +49,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, installPrompt, on
                 setIsLoading(false);
                 return;
             }
-            const session = await signupUser(formData.username, formData.password, formData.companyName);
+            const session = await signupUser(formData.email, formData.password, formData.companyName);
             if (session) onLoginSuccess(session);
-            else setError("Username taken or failed.");
+            else setError("Email taken or failed.");
         }
       }
     } catch (err: any) {
@@ -142,16 +142,19 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, installPrompt, on
             )}
 
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">{activeTab === 'crew' ? 'Company ID (Username)' : 'Username'}</label>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">{activeTab === 'crew' ? 'Email' : 'Email'}</label>
               <div className="relative">
                 <User className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
                 <input 
-                  type="text" 
+                  type="email" 
                   required 
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand outline-none transition-all"
-                  placeholder={activeTab === 'crew' ? "Enter Company ID" : "Enter Username"}
-                  value={formData.username}
-                  onChange={e => setFormData({...formData, username: e.target.value})}
+                  placeholder={activeTab === 'crew' ? "crew@company.com" : "you@company.com"}
+                  value={activeTab === 'crew' ? formData.crewEmail : formData.email}
+                  onChange={e => activeTab === 'crew' 
+                    ? setFormData({...formData, crewEmail: e.target.value})
+                    : setFormData({...formData, email: e.target.value})
+                  }
                 />
               </div>
             </div>
@@ -172,23 +175,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, installPrompt, on
                 </div>
                 </div>
             ) : (
-                <>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Crew Username</label>
-                    <div className="relative">
-                        <User className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
-                        <input 
-                        type="text" 
-                        required 
-                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand outline-none transition-all"
-                        placeholder="Enter Crew Username"
-                        value={formData.crewUsername}
-                        onChange={e => setFormData({...formData, crewUsername: e.target.value})}
-                        />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Crew Password</label>
+                <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Password</label>
                     <div className="relative">
                         <Lock className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
                         <input 
@@ -200,8 +188,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, installPrompt, on
                         onChange={e => setFormData({...formData, crewPassword: e.target.value})}
                         />
                     </div>
-                  </div>
-                </>
+                </div>
             )}
 
             <button 
@@ -238,7 +225,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, installPrompt, on
 
           {activeTab === 'crew' && (
              <div className="mt-6 text-center text-xs text-slate-400">
-                Contact your administrator if you don't have the Company ID or Crew PIN.
+                Contact your administrator if you don't have your crew login credentials.
              </div>
           )}
 

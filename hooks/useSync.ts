@@ -1,7 +1,8 @@
 
 import { useEffect, useRef } from 'react';
 import { useCalculator, DEFAULT_STATE } from '../context/CalculatorContext';
-import { syncUp, syncDown } from '../services/api';
+import { syncUp, syncDown, getCurrentSession, logoutUser } from '../services/supabaseApi';
+import { supabase } from '../lib/supabase';
 
 export const useSync = () => {
   const { state, dispatch } = useCalculator();
@@ -9,20 +10,34 @@ export const useSync = () => {
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSyncedStateRef = useRef<string>("");
 
-  // 1. SESSION RECOVERY
+  // 1. SESSION RECOVERY — use Supabase auth state instead of localStorage
   useEffect(() => {
-    const savedSession = localStorage.getItem('foamProSession');
-    if (savedSession) {
+    const recoverSession = async () => {
       try {
-        const parsedSession = JSON.parse(savedSession);
-        dispatch({ type: 'SET_SESSION', payload: parsedSession });
+        const userSession = await getCurrentSession();
+        if (userSession) {
+          dispatch({ type: 'SET_SESSION', payload: userSession });
+        } else {
+          dispatch({ type: 'SET_LOADING', payload: false });
+        }
       } catch (e) {
-        localStorage.removeItem('foamProSession');
-      }
-    } else {
-        // If no session, ensure loading stops
+        console.error('Session recovery failed:', e);
         dispatch({ type: 'SET_LOADING', payload: false });
-    }
+      }
+    };
+
+    recoverSession();
+
+    // Listen for auth state changes (login, logout, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, authSession) => {
+      if (event === 'SIGNED_OUT') {
+        dispatch({ type: 'LOGOUT' });
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [dispatch]);
 
   // 2. CLOUD-FIRST INITIALIZATION
@@ -35,14 +50,13 @@ export const useSync = () => {
       
       try {
           // Attempt Fetch from Cloud (Source of Truth)
-          const cloudData = await syncDown(session.spreadsheetId);
+          const cloudData = await syncDown();
           
           if (cloudData) {
             // Deep merge cloud data over default state
             const mergedState = {
                 ...DEFAULT_STATE,
                 ...cloudData,
-                // Ensure deeply nested objects are merged correctly if partial
                 companyProfile: { ...DEFAULT_STATE.companyProfile, ...(cloudData.companyProfile || {}) },
                 warehouse: { ...DEFAULT_STATE.warehouse, ...(cloudData.warehouse || {}) },
                 yields: { ...DEFAULT_STATE.yields, ...(cloudData.yields || {}) },
@@ -52,12 +66,6 @@ export const useSync = () => {
             dispatch({ type: 'SET_INITIALIZED', payload: true }); 
             lastSyncedStateRef.current = JSON.stringify(mergedState);
             dispatch({ type: 'SET_SYNC_STATUS', payload: 'success' });
-            
-            // Check if PIN is missing and warn
-            if (!mergedState.companyProfile.crewAccessPin) {
-                console.warn("Crew PIN missing from cloud data");
-                dispatch({ type: 'SET_NOTIFICATION', payload: { type: 'error', message: 'Warning: Crew PIN not configured.' } });
-            }
 
           } else {
             throw new Error("Empty response from cloud");
@@ -66,13 +74,13 @@ export const useSync = () => {
           console.error("Cloud sync failed:", e);
           
           // Fallback: If cloud fails (offline), try Local Storage
-          const localSaved = localStorage.getItem(`foamProState_${session.username}`);
+          const localSaved = localStorage.getItem(`foamProState_${session.email}`);
           
           if (localSaved) {
               const localState = JSON.parse(localSaved);
               dispatch({ type: 'LOAD_DATA', payload: localState });
               dispatch({ type: 'SET_INITIALIZED', payload: true });
-              dispatch({ type: 'SET_SYNC_STATUS', payload: 'error' }); // Warning state
+              dispatch({ type: 'SET_SYNC_STATUS', payload: 'error' });
               dispatch({ type: 'SET_NOTIFICATION', payload: { type: 'error', message: 'Offline Mode: Using local backup.' } });
           } else {
               // New User or Total Failure: Load Defaults
@@ -97,7 +105,7 @@ export const useSync = () => {
     const currentStateStr = JSON.stringify(appData);
     
     // Always backup to local storage
-    localStorage.setItem(`foamProState_${session.username}`, currentStateStr);
+    localStorage.setItem(`foamProState_${session.email}`, currentStateStr);
 
     // If state hasn't changed from what we last saw from/sent to cloud, do nothing
     if (currentStateStr === lastSyncedStateRef.current) return;
@@ -109,7 +117,7 @@ export const useSync = () => {
     syncTimerRef.current = setTimeout(async () => {
       dispatch({ type: 'SET_SYNC_STATUS', payload: 'syncing' });
       
-      const success = await syncUp(appData, session.spreadsheetId);
+      const success = await syncUp(appData);
       
       if (success) {
         lastSyncedStateRef.current = currentStateStr;
@@ -128,7 +136,7 @@ export const useSync = () => {
     if (!session) return;
     dispatch({ type: 'SET_SYNC_STATUS', payload: 'syncing' });
     
-    const success = await syncUp(appData, session.spreadsheetId);
+    const success = await syncUp(appData);
     
     if (success) {
       lastSyncedStateRef.current = JSON.stringify(appData);

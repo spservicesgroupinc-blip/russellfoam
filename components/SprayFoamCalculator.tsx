@@ -12,7 +12,7 @@ import { useSync } from '../hooks/useSync';
 import { useEstimates } from '../hooks/useEstimates';
 import { calculateResults } from '../utils/calculatorHelpers';
 import { generateEstimatePDF, generateDocumentPDF, generateWorkOrderPDF } from '../utils/pdfGenerator';
-import { syncUp } from '../services/api';
+import { logoutUser } from '../services/supabaseApi';
 
 import LoginPage from './LoginPage';
 import { Layout } from './Layout';
@@ -24,14 +24,13 @@ import { Settings } from './Settings';
 import { Profile } from './Profile';
 import { WorkOrderStage } from './WorkOrderStage';
 import { CrewDashboard } from './CrewDashboard';
-import { MaterialOrder } from './MaterialOrder';
 import { MaterialReport } from './MaterialReport';
 
 const SprayFoamCalculator: React.FC = () => {
   const { state, dispatch } = useCalculator();
   const { appData, ui, session } = state;
   const { handleManualSync } = useSync(); 
-  const { loadEstimateForEditing, saveEstimate, handleDeleteEstimate, saveCustomer, confirmWorkOrder, createPurchaseOrder } = useEstimates();
+  const { loadEstimateForEditing, saveEstimate, handleDeleteEstimate, saveCustomer, confirmWorkOrder } = useEstimates();
 
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [autoTriggerCustomerModal, setAutoTriggerCustomerModal] = useState(false);
@@ -55,9 +54,9 @@ const SprayFoamCalculator: React.FC = () => {
 
   const results = useMemo(() => calculateResults(appData), [appData]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logoutUser();
     dispatch({ type: 'LOGOUT' });
-    localStorage.removeItem('foamProSession');
   };
 
   const resetCalculator = () => {
@@ -148,7 +147,6 @@ const SprayFoamCalculator: React.FC = () => {
       return <LoginPage 
           onLoginSuccess={(s) => { 
               dispatch({ type: 'SET_SESSION', payload: s }); 
-              localStorage.setItem('foamProSession', JSON.stringify(s)); 
           }} 
           installPrompt={deferredPrompt}
           onInstall={handleInstallApp}
@@ -235,14 +233,6 @@ const SprayFoamCalculator: React.FC = () => {
             />
         )}
 
-        {ui.view === 'material_order' && (
-            <MaterialOrder 
-                state={appData}
-                onCancel={() => dispatch({ type: 'SET_VIEW', payload: 'warehouse' })}
-                onSavePO={createPurchaseOrder}
-            />
-        )}
-
         {ui.view === 'material_report' && (
             <MaterialReport 
                 state={appData}
@@ -281,7 +271,7 @@ const SprayFoamCalculator: React.FC = () => {
                    dispatch({ type: 'SET_VIEW', payload: 'warehouse' });
                    dispatch({ type: 'SET_NOTIFICATION', payload: { type: 'success', message: 'Settings Saved. Now update your inventory.' } });
                 }}
-                username={session?.username}
+                username={session?.email}
             />
         )}
 
@@ -292,7 +282,7 @@ const SprayFoamCalculator: React.FC = () => {
                 onUpdateCrews={(crews) => dispatch({ type: 'UPDATE_DATA', payload: { crews } })}
                 onManualSync={handleManualSync}
                 syncStatus={ui.syncStatus}
-                username={session?.username} 
+                username={session?.email} 
             />
         )}
     </Layout>

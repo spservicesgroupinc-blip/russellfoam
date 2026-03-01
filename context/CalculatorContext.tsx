@@ -67,7 +67,6 @@ export const DEFAULT_STATE: CalculatorState = {
     status: 'Active'
   },
   savedEstimates: [],
-  purchaseOrders: [],
   materialLogs: [],
   scheduledDate: '',
   assignedCrewId: '',
@@ -75,7 +74,7 @@ export const DEFAULT_STATE: CalculatorState = {
 };
 
 // --- TYPES ---
-type ViewType = 'calculator' | 'settings' | 'profile' | 'warehouse' | 'estimate' | 'dashboard' | 'customers' | 'customer_detail' | 'work_order_stage' | 'material_order' | 'material_report';
+type ViewType = 'calculator' | 'settings' | 'profile' | 'warehouse' | 'estimate' | 'dashboard' | 'customers' | 'customer_detail' | 'work_order_stage' | 'material_report';
 
 interface UIState {
   view: ViewType;

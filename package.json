@@ -10,11 +10,12 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.98.0",
+    "jspdf": "2.5.1",
+    "jspdf-autotable": "3.8.2",
     "lucide-react": "^0.561.0",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "jspdf": "2.5.1",
-    "jspdf-autotable": "3.8.2"
+    "react-dom": "^19.2.3"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
